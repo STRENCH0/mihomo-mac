@@ -4,6 +4,8 @@ A native macOS app for managing the [mihomo](https://github.com/MetaCubeX/mihomo
 
 MihomoMac manages a separately installed mihomo executable. It does not bundle a kernel, proxy subscription, or server credentials.
 
+![MihomoMac Overview dashboard showing running status, network latency, and traffic statistics](assets/overview.png)
+
 ## Features
 
 - Start and stop mihomo from the dashboard or menu bar.
