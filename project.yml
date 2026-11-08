@@ -1,0 +1,58 @@
+name: MihomoMac
+options:
+  bundleIdPrefix: com.fino-app
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16"
+  generateEmptyDirectories: true
+
+packages:
+  Yams:
+    url: https://github.com/jpsim/Yams
+    from: "5.0.0"
+  CodeEditSourceEditor:
+    url: https://github.com/CodeEditApp/CodeEditSourceEditor
+    from: "0.15.2"
+
+targets:
+  MihomoMac:
+    type: application
+    platform: macOS
+    sources:
+      - MihomoMac
+    info:
+      path: MihomoMac/Info.plist
+      properties:
+        CFBundleName: MihomoMac
+        CFBundleDisplayName: MihomoMac
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundlePackageType: $(PRODUCT_BUNDLE_PACKAGE_TYPE)
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        LSApplicationCategoryType: public.app-category.utilities
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fino-app.MihomoMac
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"  # Swift 5.9 intentional: avoids Swift 6 strict concurrency until codebase is ready
+    dependencies:
+      - package: Yams
+      - package: CodeEditSourceEditor
+    entitlements:
+      path: MihomoMac/MihomoMac.entitlements
+
+  MihomoMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - MihomoMacTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+    dependencies:
+      - target: MihomoMac

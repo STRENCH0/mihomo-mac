@@ -1,0 +1,61 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Generated Xcode project (regenerated from project.yml)
+*.xcodeproj
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+*.swp
+*~
+mihomo-darwin-*
+
+# Documentation (auto-generated plans and specs)
+docs/
+
+# Build artifacts
+xcodebuild
+*.app/
+*.xcarchive/
+*.xcresult/
+*.dSYM/
+*.dmg
+*.pkg
+*.zip
+*.p12
+*.pfx
+*.cer
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+*.xcuserstate
+*.local.xcconfig
+*.local.yaml
+*.local.yml
+*.log
+.env
+.env.*
+!.env.example
+/config.yaml
+/config.yml
+/certificates/
+/secrets/
+/AGENTS.md
+/.agents/
+/.codex/
+/.claude/
+/.superpowers/
+/.codebase-memory/
