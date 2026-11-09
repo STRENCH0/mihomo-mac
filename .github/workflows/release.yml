@@ -149,7 +149,7 @@ jobs:
           codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp \
             --entitlements MihomoMac/MihomoMac.entitlements "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
-          lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/MihomoMac"
+          lipo "$app/Contents/MacOS/MihomoMac" -verify_arch arm64 x86_64
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$VERSION"
 
       - name: Notarize application
