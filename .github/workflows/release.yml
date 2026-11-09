@@ -149,7 +149,13 @@ jobs:
           codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp \
             --entitlements MihomoMac/MihomoMac.entitlements "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
-          lipo "$app/Contents/MacOS/MihomoMac" -verify_arch arm64 x86_64
+          architectures="$(lipo -archs "$app/Contents/MacOS/MihomoMac")"
+          for architecture in arm64 x86_64; do
+            if [[ " $architectures " != *" $architecture "* ]]; then
+              echo "Missing application architecture: $architecture" >&2
+              exit 1
+            fi
+          done
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$VERSION"
 
       - name: Notarize application
