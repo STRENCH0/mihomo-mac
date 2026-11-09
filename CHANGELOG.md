@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.1.2 - 2026-11-09
+
+### Changed
+
+- Build releases with Xcode 27 and the macOS 27 SDK so standard controls use Liquid Glass on macOS 26 and later.
+- Use versioned changelog entries as GitHub Release notes.
+
+## 0.1.1 - 2026-11-09
+
 ### Added
 
 - Tag-triggered GitHub releases with universal builds, Developer ID signing, notarization, and checksums.

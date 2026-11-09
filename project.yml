@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: com.fino-app
   deploymentTarget:
     macOS: "14.0"
-  xcodeVersion: "16"
+  xcodeVersion: "27.0"
   generateEmptyDirectories: true
 
 packages:
@@ -36,7 +36,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fino-app.MihomoMac
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.1.2"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"  # Swift 5.9 intentional: avoids Swift 6 strict concurrency until codebase is ready
     dependencies:

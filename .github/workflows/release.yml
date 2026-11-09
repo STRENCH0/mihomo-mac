@@ -10,7 +10,7 @@ on:
       version:
         description: Application version for the test build
         required: true
-        default: '0.1.1'
+        default: '0.1.2'
         type: string
       notarize:
         description: Notarize the test build with Apple
@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 60
     permissions:
       contents: write
@@ -36,6 +36,15 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+
+      - name: Verify macOS SDK
+        run: |
+          xcodebuild -version
+          sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+          if [[ "$sdk_version" != 27.* ]]; then
+            echo "Expected macOS 27 SDK, found $sdk_version" >&2
+            exit 1
+          fi
 
       - name: Validate version
         env:
@@ -156,15 +165,25 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          awk -v version="$VERSION" '
+            $1 == "##" && $2 == version { found = 1; next }
+            found && $1 == "##" { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > build/release-notes.md
+          if [[ ! -s build/release-notes.md ]]; then
+            echo "Missing release notes for $VERSION in CHANGELOG.md" >&2
+            exit 1
+          fi
           printf '%s\n' \
-            'Requires macOS 14 or later. Universal application for Apple Silicon and Intel Macs.' \
+            '### Install' \
             '' \
-            'Signed with Developer ID Application and notarized by Apple.' \
-            '' \
-            'Download the ZIP, extract it, and move MihomoMac.app to Applications.' \
-            'The mihomo kernel is installed separately.' > build/release-notes.md
+            '- Requires macOS 14 or later. Universal application for Apple Silicon and Intel Macs.' \
+            '- Signed with Developer ID Application and notarized by Apple.' \
+            '- Download the ZIP, extract it, and move MihomoMac.app to Applications.' \
+            '- The mihomo kernel is installed separately.' >> build/release-notes.md
           gh release create "$RELEASE_TAG" "dist/$ARCHIVE_NAME" "dist/$ARCHIVE_NAME.sha256" \
-            --verify-tag --title "MihomoMac $VERSION" --notes-file build/release-notes.md --generate-notes
+            --verify-tag --title "MihomoMac $VERSION" --notes-file build/release-notes.md
 
       - name: Upload test results
         if: failure()

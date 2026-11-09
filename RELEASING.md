@@ -13,7 +13,7 @@ Before the first public push, check commit author and committer addresses. Use y
 
 ## Automated GitHub releases
 
-The `Release` workflow runs when a tag such as `0.1.1` or `v0.1.1` is pushed. Versions must contain three numeric components without leading zeroes or a prerelease suffix. It tests the app on a standard GitHub-hosted macOS runner, builds a universal Release for Apple Silicon and Intel, includes dependency licenses, signs with Developer ID Application, and notarizes with Apple before publishing a GitHub Release. The assets are `MihomoMac-<version>-universal.zip` and its `.sha256` checksum.
+The `Release` workflow runs when a tag such as `0.1.2` or `v0.1.2` is pushed. Versions must contain three numeric components without leading zeroes or a prerelease suffix. It tests the app on the `xcode-27` GitHub-hosted runner, verifies the macOS 27 SDK, builds a universal Release for Apple Silicon and Intel, includes dependency licenses, signs with Developer ID Application, and notarizes with Apple before publishing a GitHub Release. The assets are `MihomoMac-<version>-universal.zip` and its `.sha256` checksum. The release description uses the matching version section from `CHANGELOG.md` followed by installation details; publishing fails if that section is missing.
 
 The workflow uses the built-in `GITHUB_TOKEN` to publish releases. No personal GitHub token is required. All actions are pinned to commit hashes; update those pins when upgrading the actions.
 
@@ -48,7 +48,7 @@ Configure an App Store Connect team API key with the Developer role or higher as
 Under **Actions → Release → Run workflow**, enter a version and run the workflow on `main`. Manual runs upload a ZIP and checksum as a workflow artifact and never create a GitHub Release. Leave notarization enabled for a complete distribution check. Disable it only to test certificate import and signed builds while configuring Apple credentials; that artifact is signed but not notarized.
 
 ```sh
-gh workflow run release.yml --ref main -f version=0.1.1 -f notarize=true
+gh workflow run release.yml --ref main -f version=0.1.2 -f notarize=true
 ```
 
 ### Publish a version
@@ -56,11 +56,11 @@ gh workflow run release.yml --ref main -f version=0.1.1 -f notarize=true
 After updating the changelog, committing, and pushing the source:
 
 ```sh
-git tag -a 0.1.1 -m "Release 0.1.1"
-git push origin 0.1.1
+git tag -a 0.1.2 -m "Release 0.1.2"
+git push origin 0.1.2
 ```
 
-The workflow publishes only after tests, signature verification, notarization, ticket stapling, and Gatekeeper assessment succeed. Its release notes state the minimum macOS version, architectures, and signing status, followed by GitHub-generated change notes. Download the ZIP and verify its checksum before distributing it further. The mihomo kernel remains a separate installation.
+The workflow publishes only after tests, signature verification, notarization, ticket stapling, and Gatekeeper assessment succeed. Its release notes list the changes from `CHANGELOG.md`, minimum macOS version, architectures, and signing status. Download the ZIP and verify its checksum before distributing it further. The mihomo kernel remains a separate installation.
 
 ## Build locally
 
