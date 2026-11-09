@@ -1,0 +1,214 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Application version for the test build
+        required: true
+        default: '0.1.1'
+        type: string
+      notarize:
+        description: Notarize the test build with Apple
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      NOTARIZE: ${{ github.event_name == 'push' || inputs.notarize }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Validate version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="$INPUT_VERSION"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="${REF_NAME#v}"
+          fi
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'Expected a version in X.Y.Z or vX.Y.Z format.' >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "ARCHIVE_NAME=MihomoMac-$version-universal.zip" >> "$GITHUB_ENV"
+
+      - name: Install signing certificate
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          : "${CERTIFICATE_P12_BASE64:?Set MACOS_CERTIFICATE_P12_BASE64 in Actions secrets}"
+          : "${CERTIFICATE_PASSWORD:?Set MACOS_CERTIFICATE_PASSWORD in Actions secrets}"
+          : "${APPLE_TEAM_ID:?Set APPLE_TEAM_ID in Actions variables}"
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          certificate="$RUNNER_TEMP/signing.p12"
+          keychain_password="$(openssl rand -base64 32)"
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -P "$CERTIFICATE_PASSWORD" -k "$keychain" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*\([A-F0-9]\{40\}\) "Developer ID Application:.*"/\1/p')"
+          if [[ ! "$identity" =~ ^[A-F0-9]{40}$ ]]; then
+            echo 'Expected exactly one valid Developer ID Application identity.' >&2
+            exit 1
+          fi
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+          rm "$certificate"
+
+      - name: Install notarization credentials
+        if: env.NOTARIZE == 'true'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [[ -n "$APPLE_API_KEY_P8" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER_ID" ]]; then
+            key="$RUNNER_TEMP/notary-key.p8"
+            printf '%s' "$APPLE_API_KEY_P8" > "$key"
+            credentials=(--key "$key" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID")
+          elif [[ -n "$APPLE_ID" && -n "$APPLE_APP_PASSWORD" ]]; then
+            credentials=(--apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID")
+          else
+            echo 'Set Apple notarization credentials in Actions secrets. See RELEASING.md.' >&2
+            exit 1
+          fi
+          xcrun notarytool store-credentials release --keychain "$RUNNER_TEMP/signing.keychain-db" "${credentials[@]}"
+          rm -f "$RUNNER_TEMP/notary-key.p8"
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Run tests
+        run: |
+          xcodebuild test \
+            -project MihomoMac.xcodeproj \
+            -scheme MihomoMac \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/TestResults.xcresult \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual
+
+      - name: Build universal application
+        run: |
+          xcodebuild build \
+            -project MihomoMac.xcodeproj \
+            -scheme MihomoMac \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            ARCHS='arm64 x86_64' \
+            ONLY_ACTIVE_ARCH=NO \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            CODE_SIGN_STYLE=Manual \
+            ENABLE_HARDENED_RUNTIME=YES \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            OTHER_CODE_SIGN_FLAGS=--timestamp
+
+      - name: Include licenses and verify application
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          app=build/DerivedData/Build/Products/Release/MihomoMac.app
+          python3 scripts/collect-licenses.py \
+            MihomoMac.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+            "$app/Contents/Resources/Licenses"
+          codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp \
+            --entitlements MihomoMac/MihomoMac.entitlements "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/MihomoMac"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$VERSION"
+
+      - name: Notarize application
+        if: env.NOTARIZE == 'true'
+        run: |
+          app=build/DerivedData/Build/Products/Release/MihomoMac.app
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarization.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarization.zip" \
+            --keychain-profile release --keychain "$RUNNER_TEMP/signing.keychain-db" \
+            --wait --timeout 20m --output-format json > "$RUNNER_TEMP/notarization.json"
+          python3 -c 'import json, sys; result = json.load(open(sys.argv[1])); print("Notarization:", result["status"]); sys.exit(result["status"] != "Accepted")' "$RUNNER_TEMP/notarization.json"
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+
+      - name: Package application
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent build/DerivedData/Build/Products/Release/MihomoMac.app "dist/$ARCHIVE_NAME"
+          cd dist
+          shasum -a 256 "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
+
+      - name: Upload build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: MihomoMac-${{ env.VERSION }}-universal
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          printf '%s\n' \
+            'Requires macOS 14 or later. Universal application for Apple Silicon and Intel Macs.' \
+            '' \
+            'Signed with Developer ID Application and notarized by Apple.' \
+            '' \
+            'Download the ZIP, extract it, and move MihomoMac.app to Applications.' \
+            'The mihomo kernel is installed separately.' > build/release-notes.md
+          gh release create "$RELEASE_TAG" "dist/$ARCHIVE_NAME" "dist/$ARCHIVE_NAME.sha256" \
+            --verify-tag --title "MihomoMac $VERSION" --notes-file build/release-notes.md --generate-notes
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: TestResults
+          path: build/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/notary-key.p8"

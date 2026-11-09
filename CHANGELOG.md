@@ -4,6 +4,7 @@
 
 ### Added
 
+- Tag-triggered GitHub releases with universal builds, Developer ID signing, notarization, and checksums.
 - Native macOS menu-bar controls and a SwiftUI dashboard for mihomo.
 - Traffic, memory, connection, log, and latency views.
 - Proxy selection and individual or group latency tests.
