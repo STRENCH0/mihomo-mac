@@ -17,6 +17,8 @@ The `Release` workflow runs when a tag such as `0.1.1` or `v0.1.1` is pushed. Ve
 
 The workflow uses the built-in `GITHUB_TOKEN` to publish releases. No personal GitHub token is required. Checkout and artifact actions are pinned to commit hashes; update those pins when upgrading the actions.
 
+CI approves only the reviewed SwiftLint build-tool plugin revision listed in `.github/trusted-package-plugins.json`. Review the plugin source and binary artifact checksum before updating that fingerprint when the dependency changes. Other plugins and macros retain Xcode's normal validation.
+
 The app includes available dependency license and notice files fetched from GitHub at the resolved revisions, plus a dependency manifest. When a package has no separate license file, its README is included as source attribution; this does not replace reviewing notices for bundled binary resources.
 
 ### Signing configuration

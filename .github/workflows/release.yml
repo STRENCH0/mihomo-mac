@@ -108,6 +108,11 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      - name: Approve reviewed package plugins
+        run: |
+          mkdir -p "$HOME/Library/org.swift.swiftpm/security"
+          cp .github/trusted-package-plugins.json "$HOME/Library/org.swift.swiftpm/security/plugins.json"
+
       - name: Run tests
         run: |
           xcodebuild test \
