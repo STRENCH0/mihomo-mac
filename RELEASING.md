@@ -15,7 +15,7 @@ Before the first public push, check commit author and committer addresses. Use y
 
 The `Release` workflow runs when a tag such as `0.1.1` or `v0.1.1` is pushed. Versions must contain three numeric components without leading zeroes or a prerelease suffix. It tests the app on a standard GitHub-hosted macOS runner, builds a universal Release for Apple Silicon and Intel, includes dependency licenses, signs with Developer ID Application, and notarizes with Apple before publishing a GitHub Release. The assets are `MihomoMac-<version>-universal.zip` and its `.sha256` checksum.
 
-The workflow uses the built-in `GITHUB_TOKEN` to publish releases. No personal GitHub token is required. Checkout and artifact actions are pinned to commit hashes; update those pins when upgrading the actions.
+The workflow uses the built-in `GITHUB_TOKEN` to publish releases. No personal GitHub token is required. All actions are pinned to commit hashes; update those pins when upgrading the actions.
 
 CI approves only the reviewed SwiftLint build-tool plugin revision listed in `.github/trusted-package-plugins.json`. Review the plugin source and binary artifact checksum before updating that fingerprint when the dependency changes. Other plugins and macros retain Xcode's normal validation.
 
@@ -31,16 +31,17 @@ Create these repository settings under **Settings → Secrets and variables → 
 | Secret | `MACOS_CERTIFICATE_PASSWORD` | Password protecting the `.p12` |
 | Variable | `APPLE_TEAM_ID` | Apple Developer team ID |
 
-Use a locally managed Developer ID Application identity. Cloud-managed certificates cannot be exported with their private keys. The workflow imports the identity into a temporary keychain and removes the keychain after the job, including when a build fails.
+Use a locally managed Developer ID Application identity. Cloud-managed certificates cannot be exported with their private keys. `apple-actions/import-codesign-certs` imports the identity into a temporary keychain and removes the keychain in its post-job cleanup, including when a build fails.
 
-Configure one of these notarization methods as repository secrets:
+Configure an App Store Connect team API key with the Developer role or higher as repository secrets:
 
-| Method | Required secrets |
+| Secret | Value |
 | --- | --- |
-| App Store Connect team API key | `APPLE_API_KEY_P8` (the complete `.p8` contents), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` |
-| Apple Account | `APPLE_ID`, `APPLE_APP_PASSWORD` (an app-specific password) |
+| `APPLE_API_KEY_P8` | Complete `.p8` contents, including the private key delimiters |
+| `APPLE_API_KEY_ID` | Key ID |
+| `APPLE_API_ISSUER_ID` | Issuer ID |
 
-The workflow prefers the API key when all three API secrets are present. Tag releases require notarization credentials and fail without them. Store certificate material and passwords only in Actions Secrets.
+`Apple-Actions/notarize` submits the app, waits for acceptance, staples the ticket, and checks Gatekeeper. It retries transient submission, waiting, and stapling failures up to three times, preserving the submission ID when retrying a wait. Each wait has a 15-minute timeout. Its temporary API key file is removed after the action. Tag releases require all three API secrets. The workflow no longer uses `APPLE_ID` or `APPLE_APP_PASSWORD`. Store private keys and certificate passwords only in Actions Secrets.
 
 ### Verify without publishing
 

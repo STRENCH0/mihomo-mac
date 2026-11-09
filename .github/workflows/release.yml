@@ -32,7 +32,6 @@ jobs:
       contents: write
     env:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
-      NOTARIZE: ${{ github.event_name == 'push' || inputs.notarize }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -55,53 +54,11 @@ jobs:
           echo "ARCHIVE_NAME=MihomoMac-$version-universal.zip" >> "$GITHUB_ENV"
 
       - name: Install signing certificate
-        env:
-          CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          : "${CERTIFICATE_P12_BASE64:?Set MACOS_CERTIFICATE_P12_BASE64 in Actions secrets}"
-          : "${CERTIFICATE_PASSWORD:?Set MACOS_CERTIFICATE_PASSWORD in Actions secrets}"
-          : "${APPLE_TEAM_ID:?Set APPLE_TEAM_ID in Actions variables}"
-          keychain="$RUNNER_TEMP/signing.keychain-db"
-          certificate="$RUNNER_TEMP/signing.p12"
-          keychain_password="$(openssl rand -base64 32)"
-          echo "::add-mask::$keychain_password"
-          printf '%s' "$CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate"
-          security create-keychain -p "$keychain_password" "$keychain"
-          security set-keychain-settings -lut 21600 "$keychain"
-          security unlock-keychain -p "$keychain_password" "$keychain"
-          security import "$certificate" -P "$CERTIFICATE_PASSWORD" -k "$keychain" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" > /dev/null
-          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
-          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*\([A-F0-9]\{40\}\) "Developer ID Application:.*"/\1/p')"
-          if [[ ! "$identity" =~ ^[A-F0-9]{40}$ ]]; then
-            echo 'Expected exactly one valid Developer ID Application identity.' >&2
-            exit 1
-          fi
-          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
-          rm "$certificate"
-
-      - name: Install notarization credentials
-        if: env.NOTARIZE == 'true'
-        env:
-          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          if [[ -n "$APPLE_API_KEY_P8" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER_ID" ]]; then
-            key="$RUNNER_TEMP/notary-key.p8"
-            printf '%s' "$APPLE_API_KEY_P8" > "$key"
-            credentials=(--key "$key" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID")
-          elif [[ -n "$APPLE_ID" && -n "$APPLE_APP_PASSWORD" ]]; then
-            credentials=(--apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID")
-          else
-            echo 'Set Apple notarization credentials in Actions secrets. See RELEASING.md.' >&2
-            exit 1
-          fi
-          xcrun notarytool store-credentials release --keychain "$RUNNER_TEMP/signing.keychain-db" "${credentials[@]}"
-          rm -f "$RUNNER_TEMP/notary-key.p8"
+        id: signing
+        uses: apple-actions/import-codesign-certs@288b8ec97b82c66b6f2a6baaf7acc8dfbcbe331c
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
 
       - name: Generate project
         run: |
@@ -125,6 +82,8 @@ jobs:
             CODE_SIGN_STYLE=Manual
 
       - name: Build universal application
+        env:
+          SIGNING_IDENTITY: ${{ fromJSON(steps.signing.outputs.identities)[0].hash }}
         run: |
           xcodebuild build \
             -project MihomoMac.xcodeproj \
@@ -146,6 +105,7 @@ jobs:
       - name: Include licenses and verify application
         env:
           GH_TOKEN: ${{ github.token }}
+          SIGNING_IDENTITY: ${{ fromJSON(steps.signing.outputs.identities)[0].hash }}
         run: |
           app=build/DerivedData/Build/Products/Release/MihomoMac.app
           python3 scripts/collect-licenses.py \
@@ -164,17 +124,14 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$VERSION"
 
       - name: Notarize application
-        if: env.NOTARIZE == 'true'
-        run: |
-          app=build/DerivedData/Build/Products/Release/MihomoMac.app
-          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarization.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/notarization.zip" \
-            --keychain-profile release --keychain "$RUNNER_TEMP/signing.keychain-db" \
-            --wait --timeout 20m --output-format json > "$RUNNER_TEMP/notarization.json"
-          python3 -c 'import json, sys; result = json.load(open(sys.argv[1])); print("Notarization:", result["status"]); sys.exit(result["status"] != "Accepted")' "$RUNNER_TEMP/notarization.json"
-          xcrun stapler staple "$app"
-          xcrun stapler validate "$app"
-          spctl --assess --type execute --verbose=2 "$app"
+        if: github.event_name == 'push' || inputs.notarize
+        uses: Apple-Actions/notarize@d649d467921916bbaa3a37e32c825f01535ae843
+        with:
+          path: build/DerivedData/Build/Products/Release/MihomoMac.app
+          issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPLE_API_KEY_P8 }}
+          timeout: 15m
 
       - name: Package application
         run: |
@@ -217,9 +174,3 @@ jobs:
           path: build/TestResults.xcresult
           if-no-files-found: ignore
           retention-days: 7
-
-      - name: Remove signing credentials
-        if: always()
-        run: |
-          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
-          rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/notary-key.p8"
