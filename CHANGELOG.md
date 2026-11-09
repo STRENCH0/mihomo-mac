@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Keep the interface responsive when system DNS is unavailable, and cancel stopped network probes.
 - Include proxy-provider nodes when resolving group members.
 - Keep group members visible when their details are temporarily unavailable.
 - Use provider healthcheck routes when testing provider-node latency.
