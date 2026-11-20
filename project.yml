@@ -31,12 +31,14 @@ targets:
         CFBundlePackageType: $(PRODUCT_BUNDLE_PACKAGE_TYPE)
         CFBundleExecutable: $(EXECUTABLE_NAME)
         LSApplicationCategoryType: public.app-category.utilities
+        NSLocationUsageDescription: MihomoMac uses your Wi-Fi network name to apply your System Proxy rules.
+        NSLocationWhenInUseUsageDescription: MihomoMac uses your Wi-Fi network name to apply your System Proxy rules.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fino-app.MihomoMac
-        MARKETING_VERSION: "0.1.2"
+        MARKETING_VERSION: "0.2.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"  # Swift 5.9 intentional: avoids Swift 6 strict concurrency until codebase is ready
     dependencies:

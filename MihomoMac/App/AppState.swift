@@ -11,6 +11,9 @@ final class AppState {
     var configStatus: ConfigStatus = .idle
     let mihomoProcess = MihomoProcess()
     let systemProxy = SystemProxy()
+    let wifiMonitor = WiFiMonitor()
+    private var pendingProxyState: Bool?
+    private var proxyChangeTask: Task<Void, Never>?
     var mihomoAPI: MihomoAPI?
     var webSocket: MihomoWebSocket?
     var mihomoVersion: String?
@@ -34,6 +37,20 @@ final class AppState {
             Task { @MainActor [weak self] in
                 await self?.switchConfig()
             }
+        }
+        wifiMonitor.onSSIDChanged = { [weak self] ssid in
+            self?.applyWiFiRule(for: ssid)
+        }
+        mihomoProcess.onRunningChanged = { [weak self] running in
+            guard let self else { return }
+            if running {
+                wifiMonitor.refreshForKernelStart()
+            } else if systemProxy.isEnabled || proxyChangeTask != nil || systemProxy.lastError != nil {
+                queueProxyChange(false)
+            }
+        }
+        if appConfig.wifiRulesEnabled {
+            wifiMonitor.start()
         }
     }
 
@@ -98,11 +115,27 @@ final class AppState {
     }
 
     func setSystemProxyEnabled(_ enabled: Bool) async {
-        if enabled {
-            await enableSystemProxy()
-        } else {
-            await disableSystemProxy()
+        guard !enabled || mihomoProcess.canEnableProxy else { return }
+        await queueProxyChange(enabled).value
+    }
+
+    @discardableResult
+    private func queueProxyChange(_ enabled: Bool) -> Task<Void, Never> {
+        pendingProxyState = enabled
+        if let proxyChangeTask { return proxyChangeTask }
+        let task = Task {
+            while let next = pendingProxyState {
+                pendingProxyState = nil
+                if next {
+                    await systemProxy.enable(httpPort: proxyHTTPPort, socksPort: proxySocksPort)
+                } else {
+                    await systemProxy.disable()
+                }
+            }
+            proxyChangeTask = nil
         }
+        proxyChangeTask = task
+        return task
     }
 
     var statusMenuSnapshot: StatusMenuSnapshot {
@@ -119,12 +152,34 @@ final class AppState {
         )
     }
 
-    func enableSystemProxy() async {
-        await systemProxy.enable(httpPort: proxyHTTPPort, socksPort: proxySocksPort)
+    // MARK: - Wi-Fi rules
+
+    func setWiFiRulesEnabled(_ enabled: Bool) {
+        appConfig.wifiRulesEnabled = enabled
+        if enabled {
+            wifiMonitor.start()
+        } else {
+            wifiMonitor.stop()
+        }
     }
 
-    func disableSystemProxy() async {
-        await systemProxy.disable()
+    func setWiFiRule(for ssid: String, enabled: Bool?) {
+        guard !ssid.isEmpty, ssid.utf8.count <= 32 else { return }
+        appConfig.wifiProxyRules[ssid] = enabled
+        if ssid == wifiMonitor.ssid { applyWiFiRule(for: ssid) }
+    }
+
+    func setOtherWiFiProxyState(_ enabled: Bool?) {
+        appConfig.otherWiFiProxyState = enabled
+        if let ssid = wifiMonitor.ssid, appConfig.wifiProxyRules[ssid] == nil {
+            applyWiFiRule(for: ssid)
+        }
+    }
+
+    private func applyWiFiRule(for ssid: String?) {
+        guard mihomoProcess.canEnableProxy, let enabled = appConfig.wifiProxyState(for: ssid),
+              !enabled || canControlSystemProxy else { return }
+        queueProxyChange(enabled)
     }
 
     // MARK: - Config
@@ -184,11 +239,6 @@ final class AppState {
     }
 
     func stopMihomo() {
-        if systemProxy.isEnabled {
-            Task {
-                await systemProxy.disable()
-            }
-        }
         webSocket?.disconnect()
         networkMonitor.stop()
         mihomoProcess.stop()

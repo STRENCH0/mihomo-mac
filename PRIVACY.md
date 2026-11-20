@@ -7,6 +7,7 @@ MihomoMac manages a local mihomo process and its HTTP/WebSocket controller. The 
 - YAML profiles, including any proxy credentials or subscription URLs you put in them.
 - Profile metadata and the active-profile selection.
 - The selected mihomo executable path in application preferences.
+- Wi-Fi network names you add to System Proxy rules and the action for each name, stored in application preferences. When rules are enabled, the app uses location permission to read the current Wi-Fi name locally.
 - In-memory connection information, traffic history, kernel output, and logs while the app is running.
 - A macOS login-item registration if you enable Launch at Login.
 

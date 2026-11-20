@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-20
+
+### Added
+
+- In Settings → Wi-Fi Rules, choose a default System Proxy action for Wi-Fi networks and add exceptions by network name. Rules apply when mihomo starts or the Wi-Fi network changes.
+
 ## 0.1.2 - 2026-11-09
 
 ### Changed

@@ -5,6 +5,7 @@ import Foundation
 final class MihomoProcess {
     var status: ProcessStatus = .stopped
     var processOutput: [String] = []
+    var onRunningChanged: ((Bool) -> Void)?
 
     private var process: Process?
     private var outputPipe: Pipe?
@@ -17,6 +18,10 @@ final class MihomoProcess {
         process?.isRunning ?? false
     }
 
+    var canEnableProxy: Bool {
+        isRunning && !stoppingManually
+    }
+
     func start(executableURL: URL, configFileURL: URL, configDirURL: URL) {
         startInternal(executableURL: executableURL, configFileURL: configFileURL, configDirURL: configDirURL, isRestart: false)
     }
@@ -27,6 +32,7 @@ final class MihomoProcess {
             return
         }
         stoppingManually = true
+        onRunningChanged?(false)
         process.terminate()
 
         let pid = process.processIdentifier
@@ -86,6 +92,7 @@ final class MihomoProcess {
             status = .starting
             stoppingManually = false
             if !isRestart { restartCount = 0 }
+            onRunningChanged?(true)
         } catch {
             status = .error("Failed to start: \(error.localizedDescription)")
         }
@@ -93,6 +100,7 @@ final class MihomoProcess {
 
     private func handleTermination(exitCode: Int32, executableURL: URL, configFileURL: URL, configDirURL: URL) {
         process = nil
+        if !stoppingManually { onRunningChanged?(false) }
 
         if stoppingManually {
             stoppingManually = false

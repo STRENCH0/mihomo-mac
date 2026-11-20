@@ -16,7 +16,7 @@ struct SettingsView: View {
                     set: { appState.setLaunchAtLoginEnabled($0) }
                 ))
 
-                Text("Launch MihomoMac and start mihomo when you log in. System Proxy stays off.")
+                Text("Launch MihomoMac and start mihomo when you log in.")
                     .foregroundStyle(.secondary)
                     .font(.caption)
 
@@ -80,6 +80,8 @@ struct SettingsView: View {
                         .font(.caption)
                 }
             }
+
+            WiFiProxyRulesSection()
 
             Section("Process") {
                 processStatusView

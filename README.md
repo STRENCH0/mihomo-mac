@@ -15,7 +15,8 @@ MihomoMac manages a separately installed mihomo executable. It does not bundle a
 - Create, edit, duplicate, rename, and switch local YAML configuration profiles.
 - Switch between Rule, Global, and Direct modes.
 - Enable macOS System Proxy separately from the mihomo process.
-- Launch at login and automatically start mihomo, without enabling System Proxy.
+- Switch System Proxy on or off for specific Wi-Fi networks.
+- Launch at login and automatically start mihomo.
 - Copy local proxy environment-variable exports from the menu bar.
 
 Closing the dashboard keeps the app in the menu bar. Use **Open Dashboard** or **Command–Shift–D** to reopen it, and **Quit** to exit.
@@ -86,9 +87,11 @@ New profiles contain a minimal starter configuration. Check their controller add
 
 ## Startup and System Proxy
 
-**Settings → Startup → Launch at Login** registers MihomoMac as a macOS login item. At login, the app starts mihomo using the configured binary and active profile. It does not enable System Proxy. Ordinary manual launches do not automatically start the kernel.
+**Settings → Startup → Launch at Login** registers MihomoMac as a macOS login item. At login, the app starts mihomo using the configured binary and active profile. System Proxy stays off by default. Ordinary manual launches do not automatically start the kernel.
 
 System Proxy is a separate switch that changes macOS HTTP, HTTPS, and SOCKS proxy settings. Stopping mihomo or quitting MihomoMac disables the proxy through the app's cleanup path. Previous custom proxy settings are not saved for restoration.
+
+In **Settings → Wi-Fi Rules**, enable **Switch System Proxy by Wi-Fi network** and allow location access so macOS can provide the network name. Choose **Keep Current**, **On**, or **Off** for **Other Wi-Fi networks**. To add an exception, enter an SSID or choose **Use Current**, select **On** or **Off**, and click **Add**. For example, select **On** for other networks and add your home network with **Off**. The app applies the rule when mihomo starts, when you join a network, or when you change the action for the current network. You can override it manually until the next such event. If macOS cannot provide a Wi-Fi name, the proxy keeps its current setting.
 
 ## Local data and privacy
 

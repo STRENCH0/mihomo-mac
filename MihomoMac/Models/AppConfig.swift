@@ -3,18 +3,42 @@ import Observation
 
 @Observable
 final class AppConfig {
-    private static let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     private enum Keys {
         static let mihomoPath = "mihomoPath"
         static let legacyConfigPath = "configPath"
+        static let wifiRulesEnabled = "wifiRulesEnabled"
+        static let wifiProxyRules = "wifiProxyRules"
+        static let otherWiFiProxyState = "otherWiFiProxyState"
     }
 
     var mihomoPath: String {
-        didSet { Self.defaults.set(mihomoPath, forKey: Keys.mihomoPath) }
+        didSet { defaults.set(mihomoPath, forKey: Keys.mihomoPath) }
     }
 
-    init() {
-        self.mihomoPath = Self.defaults.string(forKey: Keys.mihomoPath) ?? ""
+    var wifiRulesEnabled: Bool {
+        didSet { defaults.set(wifiRulesEnabled, forKey: Keys.wifiRulesEnabled) }
+    }
+
+    var wifiProxyRules: [String: Bool] {
+        didSet { defaults.set(wifiProxyRules, forKey: Keys.wifiProxyRules) }
+    }
+
+    var otherWiFiProxyState: Bool? {
+        didSet { defaults.set(otherWiFiProxyState, forKey: Keys.otherWiFiProxyState) }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        mihomoPath = defaults.string(forKey: Keys.mihomoPath) ?? ""
+        wifiRulesEnabled = defaults.bool(forKey: Keys.wifiRulesEnabled)
+        wifiProxyRules = defaults.dictionary(forKey: Keys.wifiProxyRules) as? [String: Bool] ?? [:]
+        otherWiFiProxyState = defaults.object(forKey: Keys.otherWiFiProxyState) as? Bool
+    }
+
+    func wifiProxyState(for ssid: String?) -> Bool? {
+        guard wifiRulesEnabled, let ssid, !ssid.isEmpty else { return nil }
+        return wifiProxyRules[ssid] ?? otherWiFiProxyState
     }
 
     var mihomoURL: URL? {
@@ -52,10 +76,10 @@ final class AppConfig {
     }
 
     static var legacyConfigPath: String? {
-        defaults.string(forKey: Keys.legacyConfigPath)
+        UserDefaults.standard.string(forKey: Keys.legacyConfigPath)
     }
 
     static func clearLegacyConfigPath() {
-        defaults.removeObject(forKey: Keys.legacyConfigPath)
+        UserDefaults.standard.removeObject(forKey: Keys.legacyConfigPath)
     }
 }

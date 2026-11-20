@@ -27,5 +27,9 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSLocationUsageDescription</key>
+	<string>MihomoMac uses your Wi-Fi network name to apply your System Proxy rules.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>MihomoMac uses your Wi-Fi network name to apply your System Proxy rules.</string>
 </dict>
 </plist>
